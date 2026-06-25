@@ -102,19 +102,27 @@ jobs:
         find app/src/main/rust -type d -name incremental -exec rm -rf {} + 2>/dev/null || true
         find app/src/main/rust/target -name "*.rlib" -mtime +7 -delete 2>/dev/null || true
 
-    - name: Decode Release Keystore
+    - name: Generate temporary release keystore
       run: |
-        echo "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | base64 -d > ${{ github.workspace }}/release.keystore
+        keytool -genkeypair -v \
+          -keystore "$RUNNER_TEMP/release.keystore" \
+          -storepass android \
+          -keypass android \
+          -alias fork_release \
+          -keyalg RSA \
+          -keysize 2048 \
+          -validity 10000 \
+          -dname "CN=Fork Release,O=Fork,C=US"
+
+        echo "RELEASE_KEYSTORE_PATH=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+        echo "RELEASE_KEYSTORE_PASSWORD=android" >> "$GITHUB_ENV"
+        echo "RELEASE_KEY_ALIAS=fork_release" >> "$GITHUB_ENV"
 
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
 
     - name: Build Release APK
       run: ./gradlew assembleRelease --stacktrace
-      env:
-        RELEASE_KEYSTORE_PATH: ${{ github.workspace }}/release.keystore
-        RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
-        RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
 
     - name: Upload Release APK
       uses: actions/upload-artifact@v4
